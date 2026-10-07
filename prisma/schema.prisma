@@ -1,0 +1,328 @@
+// Digital Saheli – PostgreSQL schema (Neon for prod, Docker pg for local dev).
+// provider switched from sqlite → postgresql; enum-ish fields remain String (Zod validates at edges).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl is used for migrations/seed (bypasses connection pooler in Neon)
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  mobile      String?  @unique
+  password    String
+  role        String   @default("LEARNER")
+  language    String   @default("en")
+  village     String?
+  createdAt   DateTime @default(now())
+
+  progress      LessonProgress[]
+  reports       Report[]
+  shgMemberships ShgMember[]
+  quizAttempts  QuizAttempt[]
+  certificates  Certificate[]
+  simAttempts   SimulatorAttempt[]
+  messageChecks MessageCheck[]
+  notifications Notification[]
+  products      Product[]
+}
+
+model Course {
+  id         String  @id @default(cuid())
+  slug       String  @unique
+  title      String
+  titleHi    String?
+  summary    String
+  summaryHi  String?
+  category   String
+  published  Boolean @default(true)
+  order      Int     @default(0)
+
+  lessons      Lesson[]
+  quiz         Quiz?
+  certificates Certificate[]
+}
+
+model Lesson {
+  id       String @id @default(cuid())
+  courseId String
+  slug     String
+  title    String
+  titleHi  String?
+  body     String
+  bodyHi   String?
+  steps    String // one step per line
+  stepsHi  String?
+  order    Int    @default(0)
+
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
+
+  @@unique([courseId, slug])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  lessonId    String
+  completedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+}
+
+// ---- Training and certification (module 11) ----
+
+model Quiz {
+  id       String @id @default(cuid())
+  courseId String @unique
+  passMark Int    @default(60) // percent
+
+  course     Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions  Question[]
+  attempts   QuizAttempt[]
+}
+
+model Question {
+  id          String @id @default(cuid())
+  quizId      String
+  text        String
+  textHi      String?
+  options     String // JSON string[]
+  correctIdx  Int
+  explanation String
+  order       Int    @default(0)
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  quizId    String
+  score     Int
+  total     Int
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id       String   @id @default(cuid())
+  code     String   @unique // DS-2026-000123
+  userId   String
+  courseId String
+  issuedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+// ---- Scam simulator (module 8) ----
+
+model ScamScenario {
+  id           String  @id @default(cuid())
+  type         String
+  message      String
+  messageHi    String?
+  isScam       Boolean
+  explanation  String
+  explanationHi String?
+  order        Int     @default(0)
+
+  attempts SimulatorAttempt[]
+}
+
+model SimulatorAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  scenarioId   String
+  answeredScam Boolean
+  correct      Boolean
+  createdAt    DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scenario ScamScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+}
+
+// ---- Message checker (module 12): stores a hash only, never the message itself ----
+
+model MessageCheck {
+  id         String   @id @default(cuid())
+  userId     String?
+  textHash   String
+  indicators String // comma separated keys from lib/scoring.ts
+  verdict    String
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Alert {
+  id        String   @id @default(cuid())
+  title     String
+  titleHi   String?
+  body      String?
+  active    Boolean  @default(true)
+  severity  String   @default("LOW")
+  createdAt DateTime @default(now())
+}
+
+model SafetyTip {
+  id     String  @id @default(cuid())
+  text   String
+  textHi String?
+}
+
+model HelpTopic {
+  id         String  @id @default(cuid())
+  type       String  @unique
+  title      String
+  titleHi    String?
+  guidance   String
+  guidanceHi String?
+  steps      String // one step per line
+  officialUrl String
+  order      Int     @default(0)
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  userId        String?
+  type          String
+  description   String
+  incidentDate  String?
+  status        String   @default("NEW")
+  createdAt     DateTime @default(now())
+  // DEMO ONLY: stored in this app's database, never forwarded to any authority.
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ---- SHG community (module 10) ----
+
+model ShgGroup {
+  id          String    @id @default(cuid())
+  name        String
+  village     String?
+  description String?
+  formedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  members       ShgMember[]
+  meetings      Meeting[]
+  announcements Announcement[]
+  resources     Resource[]
+}
+
+model ShgMember {
+  id       String  @id @default(cuid())
+  userId   String
+  groupId  String
+  isLeader Boolean @default(false)
+
+  user  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group ShgGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Meeting {
+  id       String   @id @default(cuid())
+  groupId  String
+  title    String
+  startsAt DateTime
+  mode     String   @default("IN_PERSON") // IN_PERSON | ONLINE
+  location String?
+  link     String?
+  agenda   String?
+
+  group ShgGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  groupId   String? // null = platform-wide
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  group ShgGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Resource {
+  id      String  @id @default(cuid())
+  groupId String?
+  title   String
+  url     String
+  kind    String  @default("link") // pdf | link | video
+
+  group ShgGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+// ---- Digital business (module 13) ----
+
+model Product {
+  id          String   @id @default(cuid())
+  ownerId     String
+  name        String
+  description String?
+  priceInr    Int
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+// ---- Government services (module 14) ----
+
+model GovResource {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  eligibility String
+  category    String // SCHEMES | CERTIFICATES | EMPLOYMENT | WOMEN_WELFARE | SHG | DIGITAL
+  officialUrl String // verified .gov.in / .nic.in hosts only
+  verifiedAt  DateTime?
+}
+
+// ---- Privacy and emergency centre (module 15) ----
+
+model PrivacyGuide {
+  id      String @id @default(cuid())
+  topic   String @unique // location, camera, microphone, contacts, app_permissions, account_security
+  title   String
+  body    String
+  steps   String // one step per line
+  titleHi String?
+  bodyHi  String?
+  stepsHi String?
+  order   Int    @default(0)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String? // null = broadcast to everyone
+  title     String
+  titleHi   String?
+  body      String
+  bodyHi    String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

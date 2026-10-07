@@ -1,0 +1,39 @@
+services:
+  # ── PostgreSQL (local dev only) ───────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: saheli
+      POSTGRES_PASSWORD: saheli_dev
+      POSTGRES_DB: digital_saheli
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saheli -d digital_saheli"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Next.js app ───────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://saheli:saheli_dev@db:5432/digital_saheli"
+      DIRECT_URL: "postgresql://saheli:saheli_dev@db:5432/digital_saheli"
+      AUTH_SECRET: "change-me-in-production"
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

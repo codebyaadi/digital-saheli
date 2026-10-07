@@ -1,0 +1,23 @@
+/* Brand overrides. Colours live in globals.css tokens (purple #5b2a86, lavender #f1eaff, teal #0f8a7e). */
+/* Base font size is 18px on purpose: the target users are reading on small phones. */
+html { font-size: 18px; }
+body { font-family: var(--font-space-grotesk), var(--font-noto-deva), system-ui, sans-serif; font-size: 1rem; line-height: 1.6; }
+:lang(hi) { font-family: var(--font-noto-deva), var(--font-space-grotesk), system-ui, sans-serif; }
+
+/* Long Hindi words must never overflow a card or a button. */
+h1, h2, h3, p, li, td, th, label, button { overflow-wrap: break-word; }
+button, a { -webkit-tap-highlight-color: transparent; }
+
+/* Visible focus for keyboard users everywhere. */
+:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media print {
+  header, footer, nav, .no-print { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  body { background: #fff; }
+}

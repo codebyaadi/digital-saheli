@@ -1,0 +1,16 @@
+node_modules
+.next
+*.db
+*.db-journal
+
+# Environment files – keep .env.example, ignore real secrets
+.env
+.env.local
+.env*.local
+
+# TypeScript build info
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Docker volumes (if mounted locally)
+pgdata/
