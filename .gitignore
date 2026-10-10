@@ -14,3 +14,5 @@ tsconfig.tsbuildinfo
 
 # Docker volumes (if mounted locally)
 pgdata/
+
+.vercel
